@@ -1,4 +1,4 @@
-# SECURITY.md
+# SECURITY
 
 ## Security policy
 

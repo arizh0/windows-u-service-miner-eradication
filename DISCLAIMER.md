@@ -1,4 +1,4 @@
-# DISCLAIMER.md
+# DISCLAIMER
 
 This repository is provided for educational and documentation purposes only.
 
