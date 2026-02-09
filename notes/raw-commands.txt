@@ -1,0 +1,52 @@
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost" /v DcomLaunch
+
+if it shows something - especially looking like u###### > virus is there
+
+sc stop u952451
+sc config u952451 start= disabled
+sc query u952451
+
+$k = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost'
+$v = (Get-ItemProperty -Path $k -Name DcomLaunch).DcomLaunch
+$new = $v | Where-Object { $_ -ne 'u952451' }
+Set-ItemProperty -Path $k -Name DcomLaunch -Value $new
+
+sc delete u952451
+
+dir C:\Windows\System32\u952451.dll
+del /f C:\Windows\System32\u952451.dll
+
+dir C:\Windows\System32\svcinsty64.exe
+dir C:\Windows\System32\svctrl64.exe
+dir C:\Windows\System32\wsvcz
+dir C:\Windows\System32\wsvcz\wlogz.dat
+
+taskkill /f /im svctrl64.exe
+taskkill /f /im u*.exe
+
+takeown /f C:\Windows\System32\svctrl64.exe
+icacls C:\Windows\System32\svctrl64.exe /grant Administrators:F
+
+takeown /f C:\Windows\System32\wsvcz /r /d y
+icacls C:\Windows\System32\wsvcz /grant Administrators:F /t
+
+icacls C:\Windows\System32\svctrl64.exe /grant *S-1-5-32-544:F
+icacls C:\Windows\System32\wsvcz /grant *S-1-5-32-544:F
+
+icacls C:\Windows\System32\svctrl64.exe /grant "%USERNAME%":F
+icacls C:\Windows\System32\wsvcz /grant "%USERNAME%":F /t
+
+attrib -s -h -r C:\Windows\System32\svctrl64.exe
+attrib -s -h -r C:\Windows\System32\wsvcz\*.* /s /d
+
+del /f /q C:\Windows\System32\svctrl64.exe
+rmdir /s /q C:\Windows\System32\wsvcz
+
+dir /a C:\Windows\System32\svctrl64.exe
+dir /a C:\Windows\System32\wsvcz
+dir "C:\Windows \System32"
+
+sc query u952451
+reg query "HKLM\SYSTEM\CurrentControlSet\Services\u952451" /s
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost" /v DcomLaunch
+dir C:\Windows\System32\u952451.dll
