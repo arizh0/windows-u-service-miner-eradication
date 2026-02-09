@@ -1,0 +1,37 @@
+# .gitignore (Windows + PowerShell repo)
+
+# PowerShell
+*.ps1xml
+*.psc1
+*.psd1.user
+*.psm1.user
+
+# Logs / outputs
+*.log
+*.tmp
+
+# Registry exports / incident artifacts (do not commit)
+*.reg
+*.evtx
+*.dmp
+*.pcap
+*.pcapng
+
+# Windows noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS / misc
+.DS_Store
+
+# Archives
+*.zip
+*.7z
+*.rar

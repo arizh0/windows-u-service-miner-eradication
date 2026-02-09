@@ -1,3 +1,10 @@
+# NOTE: Chronological command log from one real cleanup case.
+# This sequence mixes CMD and PowerShell. Follow the markers.
+
+========================
+CMD (Run as Administrator)
+========================
+
 reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost" /v DcomLaunch
 
 if it shows something - especially looking like u###### > virus is there
@@ -6,10 +13,18 @@ sc stop u952451
 sc config u952451 start= disabled
 sc query u952451
 
+================================
+PowerShell (Run as Administrator)
+================================
+
 $k = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost'
 $v = (Get-ItemProperty -Path $k -Name DcomLaunch).DcomLaunch
 $new = $v | Where-Object { $_ -ne 'u952451' }
 Set-ItemProperty -Path $k -Name DcomLaunch -Value $new
+
+========================
+CMD (Back to Administrator)
+========================
 
 sc delete u952451
 
@@ -30,6 +45,19 @@ icacls C:\Windows\System32\svctrl64.exe /grant Administrators:F
 takeown /f C:\Windows\System32\wsvcz /r /d y
 icacls C:\Windows\System32\wsvcz /grant Administrators:F /t
 
+=========================================
+PowerShell (If running these in PowerShell)
+=========================================
+# NOTE: In PowerShell, quote the SID grant so * isn't treated as a wildcard.
+
+icacls C:\Windows\System32\svctrl64.exe /grant "*S-1-5-32-544:F"
+icacls C:\Windows\System32\wsvcz /grant "*S-1-5-32-544:F"
+
+========================
+CMD (If running these in CMD)
+========================
+# NOTE: In CMD the unquoted form is fine.
+
 icacls C:\Windows\System32\svctrl64.exe /grant *S-1-5-32-544:F
 icacls C:\Windows\System32\wsvcz /grant *S-1-5-32-544:F
 
@@ -44,7 +72,7 @@ rmdir /s /q C:\Windows\System32\wsvcz
 
 dir /a C:\Windows\System32\svctrl64.exe
 dir /a C:\Windows\System32\wsvcz
-dir "C:\Windows \System32"
+dir C:\Windows\System32
 
 sc query u952451
 reg query "HKLM\SYSTEM\CurrentControlSet\Services\u952451" /s
