@@ -55,11 +55,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Assert-Admin {
+function Is-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $p  = New-Object Security.Principal.WindowsPrincipal($id)
-    if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Assert-Admin {
+    if (-not (Is-Admin)) {
         throw "Run PowerShell as Administrator."
+    }
+}
+
+function Ensure-Directory {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($PSCmdlet.ShouldProcess($Path, "Create directory")) {
+            New-Item -ItemType Directory -Force -Path $Path | Out-Null
+        }
     }
 }
 
@@ -96,7 +110,7 @@ function Set-DcomLaunchEntries {
 
     $k = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost'
     $v = 'DcomLaunch'
-    if ($PSCmdlet.ShouldProcess("$k\$v", "Set DcomLaunch entries (REG_MULTI_SZ)")) {
+    if ($PSCmdlet.ShouldProcess("$k\$v", "Set DcomLaunch entries (commonly REG_MULTI_SZ)")) {
         Set-ItemProperty -Path $k -Name $v -Value $Entries -ErrorAction Stop
     }
 }
@@ -205,18 +219,18 @@ function Kill-CaseStudyProcesses {
 function Get-Targets {
     param([string]$Regex)
 
-    $entries = @(Get-DcomLaunchEntries)
-
     if ($ServiceName -and $ServiceName.Trim() -ne "") {
         return @($ServiceName.Trim())
     }
 
+    $entries = @(Get-DcomLaunchEntries)
     $sus = $entries | Where-Object { $_ -match $Regex }
     return @($sus)
 }
 
 try {
-    Assert-Admin
+    $needsAdmin = $Remediate -or $KillProcesses -or $DeleteArtifacts
+    if ($needsAdmin) { Assert-Admin }
 
     $entries = @(Get-DcomLaunchEntries)
     Write-Host "Svchost group 'DcomLaunch' entries:"
@@ -255,11 +269,24 @@ try {
     Write-Host ""
     Write-Host "Remediation enabled."
 
+    Ensure-Directory -Path $BackupDir
+
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupFile = Join-Path -Path $BackupDir -ChildPath "SvchostKey-backup-$timestamp.reg"
 
     Write-Host "Backing up Svchost registry key to: $backupFile"
     Backup-SvchostKey -OutFile $backupFile
+
+    # Collect per-service and shared artifact targets (de-dup)
+    $perServiceDlls = @()
+    foreach ($t in $targets) {
+        $perServiceDlls += ("C:\Windows\System32\{0}.dll" -f $t)
+    }
+    $sharedArtifacts = @(
+        "C:\Windows\System32\svctrl64.exe",
+        "C:\Windows\System32\svcinsty64.exe",
+        "C:\Windows\System32\wsvcz"
+    )
 
     foreach ($t in $targets) {
         Write-Host ""
@@ -279,27 +306,25 @@ try {
         }
 
         if ($DeleteArtifacts) {
-            Write-Host "[4/4] Delete artifacts (opt-in)"
-
-            $defaultArtifacts = @(
-                ("C:\Windows\System32\{0}.dll" -f $t),
-                "C:\Windows\System32\svctrl64.exe",
-                "C:\Windows\System32\svcinsty64.exe",
-                "C:\Windows\System32\wsvcz"
-            )
-
-            $artifactTargets = @($defaultArtifacts + $ExtraPaths) |
-                Where-Object { $_ -and $_.Trim() -ne "" } |
-                Select-Object -Unique
-
-            Write-Host "Artifact targets:"
-            $artifactTargets | ForEach-Object { Write-Host "  - $_" }
-
-            foreach ($p in $artifactTargets) {
-                Remove-PathForce -Path $p
-            }
+            Write-Host "[4/4] Delete per-service artifacts (opt-in)"
+            Remove-PathForce -Path ("C:\Windows\System32\{0}.dll" -f $t)
         } else {
             Write-Host "[4/4] Artifact deletion skipped"
+        }
+    }
+
+    if ($DeleteArtifacts) {
+        # Shared artifacts once (plus extras), de-duped
+        $artifactTargets = @($sharedArtifacts + $ExtraPaths) |
+            Where-Object { $_ -and $_.Trim() -ne "" } |
+            Select-Object -Unique
+
+        Write-Host ""
+        Write-Host "Deleting shared/extra artifact targets (opt-in):"
+        $artifactTargets | ForEach-Object { Write-Host "  - $_" }
+
+        foreach ($p in $artifactTargets) {
+            Remove-PathForce -Path $p
         }
     }
 
